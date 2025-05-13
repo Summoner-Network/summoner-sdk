@@ -40,13 +40,56 @@ PYTHON="python3"
 # ─────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────
+
+
+# GNU sed:        sed --version succeeds → use “-i”
+# BSD/macOS sed:  sed --version fails     → use “-i ''”
+if sed --version >/dev/null 2>&1; then
+  SED_INPLACE=(-i)
+else
+  SED_INPLACE=(-i '')
+fi
+
 rewrite_imports() {
-  local pkg=$1 dir=$2
-  find "$dir" -type f -name '*.py' -print0 | \
-    xargs -0 perl -pi -e \
-      "s/^from\\s+tooling\\.$pkg\\./from $pkg\\./; \
-       s/^from\\s+summoner\\.$pkg\\./from $pkg\\./;"
+  local _unused_pkg=$1 dir=$2
+  echo "    🔎 Rewriting imports in $dir"
+
+  find "$dir" -type f -name '*.py' -print0 | while IFS= read -r -d '' file; do
+    echo "    📄 Processing: $file"
+
+    echo "      ↪ Before:"
+    grep -E '^[[:space:]]*#?[[:space:]]*from[[:space:]]+(tooling|summoner)\.' "$file" \
+      || echo "        (no matches)"
+
+    local tmp_before
+    tmp_before=$(mktemp -t rewrite_imports.XXXXXX) || { echo "      ❌ Failed to create temp file"; continue; }
+    cp "$file" "$tmp_before"
+
+    # ─────────────────────────────────────────────────────
+    # Do the replacement in-place with sed (POSIX-safe regex)
+    # ─────────────────────────────────────────────────────
+    sed -E "${SED_INPLACE[@]}" \
+      -e 's/^([[:space:]]*#?[[:space:]]*)from[[:space:]]+tooling\.([[:alnum:]_]+)/\1from \2/' \
+      -e 's/^([[:space:]]*#?[[:space:]]*)from[[:space:]]+summoner\.([[:alnum:]_]+)/\1from \2/' \
+      "$file"
+
+    echo "      ↪ After:"
+    # use awk instead of tail -n +4 for full POSIX compatibility
+    diff_output=$(diff -u "$tmp_before" "$file" \
+                  | awk 'NR>=4' \
+                  | grep '^+[^+]' \
+                  || true)
+    if [[ -z "$diff_output" ]]; then
+      echo "        (no visible changes)"
+    else
+      echo "$diff_output" | sed 's/^/        /'
+    fi
+
+    rm -f "$tmp_before"
+  done
 }
+
+
 
 clone_native() {
   local url=$1 name
@@ -112,7 +155,7 @@ bootstrap() {
   fi
   # shellcheck source=/dev/null
   source "$VENVDIR/bin/activate"
-
+  
   # 6) Install build tools
   echo "  📦 Installing build requirements"
   pip install --upgrade pip setuptools wheel maturin
