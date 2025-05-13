@@ -178,7 +178,7 @@ EOF
 
 delete() {
   echo "🔄 Deleting environment…"
-  rm -rf "$SRC" "$VENVDIR" native_build test_server*
+  rm -rf "$SRC" "$VENVDIR" native_build test_*.{py,json,log}
   echo "✅ Deletion complete"
 }
 
