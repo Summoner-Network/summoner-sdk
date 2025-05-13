@@ -25,7 +25,7 @@ You can invoke `build_sdk.sh` in two ways:
    ./build_sdk.sh <command> [variant]
    ```
 
-   After execution, the script will have created and populated the `venv/`, but you’ll need to activate it manually:
+   After executing `build_sdk.sh setup`, the script will have created and populated the `venv/`, but you’ll need to activate it manually:
 
    ```bash
    source venv/bin/activate
