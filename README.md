@@ -212,7 +212,7 @@ bash build_sdk.sh test_server
 bash build_sdk.sh clean
 ```
 
----
+<!-- ---
 
 ## `build.txt` & `test_build.txt` Format
 
@@ -229,4 +229,49 @@ For quick smoke-testing, `test_build.txt` should contain:
 ```txt
 https://github.com/Summoner-Network/starter-template.git
 ```
+ -->
+
+## `build.txt` & `test_build.txt` Format
+
+Each file lists one or more native-module repositories. Blank lines and `#` comments are ignored.
+
+You can **optionally specify which folders inside `tooling/` to include**:
+
+### Basic Format (no filtering)
+
+If you want to include all features from the repo (i.e. all folders under `tooling/`), list the repository URL on its own line:
+
+```txt
+# Include all tooling features from these repos
+https://github.com/Summoner-Network/summoner-smart-tools.git
+https://github.com/Summoner-Network/summoner-creatures.git
+```
+
+### Filtered Format (select specific folders)
+
+To include only specific subfolders inside the `tooling/` directory, write the repo URL followed by a colon on its own line, then list the desired folders (one per line):
+
+```txt
+# Only include feature1 and feature2 from this repo
+https://github.com/your-org/your-repo.git:
+feature1
+feature2
+```
+
+Only folders that actually exist in the repo's `tooling/` directory will be copied. Nonexistent ones are skipped silently with a warning.
+
+### Example
+
+```txt
+# Full repo usage (includes all features)
+https://github.com/Summoner-Network/summoner-smart-tools.git
+
+# Filtered usage (only feature_x and feature_y if present)
+https://github.com/Summoner-Network/summoner-creatures.git:
+feature_x
+feature_y
+```
+
+This format gives you precise control over which modules are included in the final SDK build.
+
 
