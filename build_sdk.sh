@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+
 set -e  # only -e, no -u so sourcing doesn’t abort on unset vars
 
 # ─────────────────────────────────────────────────────
@@ -48,27 +49,103 @@ else
   SED_INPLACE=(-i '')
 fi
 
+## Add these definitions at the top of your script, after detecting shell and before functions
+RED=$'\033[31m'   # red
+GREEN=$'\033[32m' # green
+RESET=$'\033[0m'  # reset
+
+## Updated rewrite_imports() with colored before/after lines
 rewrite_imports() {
   local _unused_pkg=$1 dir=$2
   echo "    🔎 Rewriting imports in $dir"
+
   find "$dir" -type f -name '*.py' -print0 \
-    | while IFS= read -r -d '' file; do
-      echo "    📄 $file"
-      local tmp_before
-      tmp_before=$(mktemp) && cp "$file" "$tmp_before"
+  | while IFS= read -r -d '' file; do
+      echo "    📄 Processing: $file"
+
+      # Before: red
+      echo "      ↪ Before:"
+      if grep -E '^[[:space:]]*#?[[:space:]]*from[[:space:]]+(tooling|summoner)\.' "$file" >/dev/null; then
+        grep -E '^[[:space:]]*#?[[:space:]]*from[[:space:]]+(tooling|summoner)\.' "$file" \
+          | sed -e "s/^/        ${RED}/" -e "s/$/${RESET}/"
+      else
+        echo "        (no matches)"
+      fi
+
+      # snapshot
+      tmp_before=$(mktemp) || { echo "      ❌ mktemp failed"; continue; }
+      cp "$file" "$tmp_before"
+
+      # in-place replacements
       sed -E "${SED_INPLACE[@]}" \
         -e 's/^([[:space:]]*#?[[:space:]]*)from[[:space:]]+tooling\.([[:alnum:]_]+)/\1from \2/' \
         -e 's/^([[:space:]]*#?[[:space:]]*)from[[:space:]]+summoner\.([[:alnum:]_]+)/\1from \2/' \
         "$file"
+
+      # After: green
+      echo "      ↪ After:"
+      after_lines=$(diff -u "$tmp_before" "$file" \
+        | awk 'NR>=4 && /^\+[^+]/ { print substr($0,2) }')
+      if [ -n "$after_lines" ]; then
+        printf '%s\n' "$after_lines" \
+          | sed -e "s/^/        ${GREEN}/" -e "s/$/${RESET}/"
+      else
+        echo "        (no visible changes)"
+      fi
+
       rm -f "$tmp_before"
     done
 }
+
+
+
 
 clone_native() {
   local url=$1 name
   name=$(basename "$url" .git)
   echo "📥 Cloning native repo: $name"
   git clone --depth 1 "$url" native_build/"$name"
+}
+
+# ─────────────────────────────────────────────────────
+# Merge one native repo’s tooling/
+# ─────────────────────────────────────────────────────
+merge_tooling() {
+  repo_url=$1; shift
+  features="$*"
+  # extract “name” from URL
+  name=${repo_url##*/}
+  name=${name%.git}
+  srcdir="native_build/$name/tooling"
+  if [ ! -d "$srcdir" ]; then
+    echo "⚠️  No tooling/ in $name, skipping"
+    return
+  fi
+
+  echo "  🔀 Processing tooling in $name"
+  if [ -z "$features" ]; then
+    # copy everything
+    for pkg_dir in "$srcdir"/*; do
+      [ -d "$pkg_dir" ] || continue
+      pkg=${pkg_dir##*/}
+      dest="$SRC/summoner/$pkg"
+      echo "    🚚 Adding package: $pkg"
+      cp -R "$pkg_dir" "$dest"
+      rewrite_imports "$pkg" "$dest"
+    done
+  else
+    # only copy listed features
+    for pkg in $features; do
+      if [ -d "$srcdir/$pkg" ]; then
+        dest="$SRC/summoner/$pkg"
+        echo "    🚚 Adding package: $pkg"
+        cp -R "$srcdir/$pkg" "$dest"
+        rewrite_imports "$pkg" "$dest"
+      else
+        echo "    ⚠️  $name/tooling/$pkg not found, skipping"
+      fi
+    done
+  fi
 }
 
 # ─────────────────────────────────────────────────────
@@ -94,97 +171,70 @@ bootstrap() {
     | sed 's/^/    /'
   echo
 
-  # 3) Parse build list into repos[] and features_list[]
-  echo "  📋 Parsing $BUILD_LIST"
-  rm -rf native_build
+  # ─────────────────────────────────────────────────────
+  # 3+4) POSIX-sh parse BUILD_LIST, clone & merge tooling
+  # ─────────────────────────────────────────────────────
+  echo "  📋 Parsing $BUILD_LIST and merging tooling…"
+  rm -rf native_build || true
   mkdir -p native_build
+  mkdir -p "$SRC/summoner"
 
-  repos=()
-  features_list=()
-  current_url=""
-  current_features=""
+  current_url=
+  current_features=
 
-  while IFS= read -r raw || [[ -n "$raw" ]]; do
-    # strip Windows CR + trim
-    line="${raw//$'\r'/}"
-    line="$(echo "$line" | xargs)"   # trim
-    [[ -z "$line" || "${line:0:1}" == "#" ]] && continue
+  while IFS= read -r raw_line || [ -n "$raw_line" ]; do
+    # strip DOS CR
+    # line=${raw_line%$'\r'}
+    line=${raw_line%
+    }
+    # trim leading/trailing whitespace
+    set -- $line
+    line=$*
 
-    if [[ "$line" =~ ^(.+\.git):$ ]]; then
-      # url with a trailing colon → begin filtered block
-      # save previous
-      if [[ -n "$current_url" ]]; then
-        repos+=("$current_url")
-        features_list+=("$current_features")
-      fi
-      current_url="${BASH_REMATCH[1]}"
-      current_features=""
-    elif [[ "$line" =~ ^.+\.git$ ]]; then
-      # plain url → include all tooling
-      if [[ -n "$current_url" ]]; then
-        repos+=("$current_url")
-        features_list+=("$current_features")
-      fi
-      current_url="$line"
-      current_features=""
-    else
-      # a feature name
-      if [[ -z "$current_features" ]]; then
-        current_features="$line"
-      else
-        current_features="$current_features $line"
-      fi
-    fi
+    # skip empty or comment
+    case "$line" in
+      ''|\#*) continue ;;
+    esac
+
+    case "$line" in
+      *.git:)
+        # a URL with trailing ':' → finish previous block
+        if [ -n "$current_url" ]; then
+          clone_native "$current_url"
+          merge_tooling "$current_url" $current_features
+        fi
+        current_url=${line%:}
+        current_features=
+        ;;
+      *.git)
+        # a bare URL → also finish previous, start new
+        if [ -n "$current_url" ]; then
+          clone_native "$current_url"
+          merge_tooling "$current_url" $current_features
+        fi
+        current_url=$line
+        current_features=
+        ;;
+      *)
+        # a feature name → accumulate
+        if [ -z "$current_features" ]; then
+          current_features=$line
+        else
+          current_features="$current_features $line"
+        fi
+        ;;
+    esac
   done < "$BUILD_LIST"
-  # push last
-  if [[ -n "$current_url" ]]; then
-    repos+=("$current_url")
-    features_list+=("$current_features")
+
+  # final repo
+  if [ -n "$current_url" ]; then
+    clone_native "$current_url"
+    merge_tooling "$current_url" $current_features
   fi
 
-  echo "    → Found ${#repos[@]} repos in build list"
-  for url in "${repos[@]}"; do
-    clone_native "$url"
-  done
-
-  # 4) Merge tooling/ → summoner-sdk/summoner/
-  mkdir -p "$SRC/summoner"
-  for idx in "${!repos[@]}"; do
-    repo="${repos[$idx]}"
-    features="${features_list[$idx]}"
-    name=$(basename "$repo" .git)
-    srcdir="native_build/$name/tooling"
-    if [ ! -d "$srcdir" ]; then
-      echo "⚠️  No tooling/ in $name, skipping"
-      continue
-    fi
-
-    echo "  🔀 Processing tooling in $name"
-    if [[ -z "$features" ]]; then
-      # no filter → copy all
-      pkg_dirs=( "$srcdir"/* )
-    else
-      # filtered → only these names
-      pkg_dirs=()
-      for pkg in $features; do
-        if [ -d "$srcdir/$pkg" ]; then
-          pkg_dirs+=( "$srcdir/$pkg" )
-        else
-          echo "    ⚠️  $name/tooling/$pkg not found, skipping"
-        fi
-      done
-    fi
-
-    for pkg_dir in "${pkg_dirs[@]}"; do
-      pkg=$(basename "$pkg_dir")
-      dest="$SRC/summoner/$pkg"
-      echo "    🚚 Adding package: $pkg"
-      cp -R "$pkg_dir" "$dest"
-      rewrite_imports "$pkg" "$dest"
-    done
-  done
-
-  # 5) Create & activate venv
+  # ─────────────────────────────────────────────────────
+  # 5) Create & activate venv … etc.
+  # ─────────────────────────────────────────────────────
   if [ ! -d "$VENVDIR" ]; then
     echo "  🐍 Creating virtualenv → $VENVDIR"
     $PYTHON -m venv "$VENVDIR"
@@ -195,13 +245,13 @@ bootstrap() {
   # ─────────────────────────────────────────────────────
   # Install native‐repo requirements if present
   # ─────────────────────────────────────────────────────
-  echo "  📦 Checking for native‐repo requirements..."
-  for url in "${repos[@]}"; do
-    name=$(basename "$url" .git)
-    req="native_build/$name/requirements.txt"
+  echo "  📦 Checking for native-repo requirements…"
+  for repo_dir in native_build/*; do
+    name=$(basename "$repo_dir")
+    req="$repo_dir/requirements.txt"
     if [ -f "$req" ]; then
       echo "    ▶ Installing requirements for $name"
-      python3 -m pip install -r "$req"
+      $PYTHON -m pip install -r "$req"
     else
       echo "    ⚠️  $name has no requirements.txt, skipping"
     fi
@@ -227,8 +277,8 @@ EOF
 
 delete() {
   echo "🔄 Deleting environment…"
-  rm -rf "$SRC" "$VENVDIR" native_build "$ROOT"/logs
-  rm -f test_*.{py,json}
+  rm -rf "$SRC" "$VENVDIR" native_build "$ROOT"/logs || true
+  rm -f test_*.{py,json} || true
   echo "✅ Deletion complete"
 }
 
@@ -265,8 +315,8 @@ EOF
 
 clean() {
   echo "🧹 Cleaning generated files…"
-  rm -rf native_build "$ROOT"/logs/*
-  rm -f test_*.{py,json}
+  rm -rf native_build "$ROOT"/logs/* || true
+  rm -f test_*.{py,json} || true
   echo "✅ Clean complete"
 }
 

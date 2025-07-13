@@ -1,5 +1,5 @@
 # Remy's
-*.sh.old
+*.old
 native_build
 summoner-sdk
 tests
