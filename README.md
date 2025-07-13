@@ -17,7 +17,7 @@ To create your own project using this template:
   <img width="450px" src="img/use_template.png" alt="Use this template button screenshot" />
 </p>
 
-1. Click the **“Use this template”** button at the top of the [GitHub repository page](https://github.com/Summoner-Network/starter-template).
+1. Click the **“Use this template”** button at the top of the [GitHub repository page](https://github.com/Summoner-Network/summoner-sdk).
 2. Select **“Create a new repository”**.
 3. Name your project and click **“Create repository from template”**.
 
