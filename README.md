@@ -1,6 +1,6 @@
 # Summoner SDK Build & Dev Script
 
-This repository includes `build_sdk.sh`, a one-stop script to manage your Summoner SDK development, from cloning the core repo and merging native modules to running smoke-tests. Below is an overview of each command, its expected behavior, and example usage.
+This repository provides a **GitHub template** that includes `build_sdk.sh`, a one-stop script for managing your Summoner SDK development — from cloning the core repo and merging native modules to running smoke tests. Below is an overview of each command, its expected behavior, and example usage.
 
 ## Prerequisites
 
@@ -9,6 +9,34 @@ This repository includes `build_sdk.sh`, a one-stop script to manage your Summon
 - A `build.txt` file listing your native-module repo URLs (one per line)  
 - Optionally a `test_build.txt` (for quick self-tests against the starter template)
 
+## Getting Started
+
+To create your own project using this template:
+
+<p align="center">
+  <img width="450px" src="img/use_template.png" alt="Use this template button screenshot" />
+</p>
+
+1. Click the **“Use this template”** button at the top of the [GitHub repository page](https://github.com/Summoner-Network/starter-template).
+2. Select **“Create a new repository”**.
+3. Name your project and click **“Create repository from template”**.
+
+This will generate a new repository under your GitHub account with the template contents.
+
+Clone your new repository and navigate into it:
+
+```bash
+git clone https://github.com/<your_account>/<your_repo>.git
+cd <your_repo>
+```
+
+Next, define your SDK composition by editing the [`build.txt`](#buildtxt--test_buildtxt-format) file, which lists the native modules to include in your build. Then run the [`build_sdk.sh`](#how-to-run-build_sdksh) script:
+
+```bash
+source build_sdk.sh setup
+```
+
+You’re now ready to begin development.
 
 ## How to Run `build_sdk.sh`
 
@@ -212,34 +240,16 @@ bash build_sdk.sh test_server
 bash build_sdk.sh clean
 ```
 
-<!-- ---
-
 ## `build.txt` & `test_build.txt` Format
 
-List your native-package repo URLs, one per line. Blank lines and `#` comments are ignored:
+The `build.txt` and `test_build.txt` files define which native-package repositories should be included when composing the SDK. Each file lists repository URLs, one per line. Blank lines and lines starting with `#` are ignored.
 
-```txt
-# My Summoner extensions
-https://github.com/Summoner-Network/redteam.git
-https://github.com/Summoner-Network/smartools.git
-```
+You can **optionally specify which subfolders within `tooling/` to include** from each repository.
 
-For quick smoke-testing, `test_build.txt` should contain:
 
-```txt
-https://github.com/Summoner-Network/starter-template.git
-```
- -->
+### Basic Format (include all features)
 
-## `build.txt` & `test_build.txt` Format
-
-Each file lists one or more native-module repositories. Blank lines and `#` comments are ignored.
-
-You can **optionally specify which folders inside `tooling/` to include**:
-
-### Basic Format (no filtering)
-
-If you want to include all features from the repo (i.e. all folders under `tooling/`), list the repository URL on its own line:
+To include all available features from a repository — meaning every folder under its `tooling/` directory — just write the repo URL by itself:
 
 ```txt
 # Include all tooling features from these repos
@@ -247,9 +257,16 @@ https://github.com/Summoner-Network/summoner-smart-tools.git
 https://github.com/Summoner-Network/summoner-creatures.git
 ```
 
-### Filtered Format (select specific folders)
+For basic smoke testing, your `test_build.txt` can be minimal:
 
-To include only specific subfolders inside the `tooling/` directory, write the repo URL followed by a colon on its own line, then list the desired folders (one per line):
+```txt
+https://github.com/Summoner-Network/starter-template.git
+```
+
+
+### Filtered Format (include specific folders)
+
+To include only specific subfolders from a repository’s `tooling/` directory, add a colon `:` after the URL, followed by the names of the folders you want (one per line):
 
 ```txt
 # Only include feature1 and feature2 from this repo
@@ -258,7 +275,8 @@ feature1
 feature2
 ```
 
-Only folders that actually exist in the repo's `tooling/` directory will be copied. Nonexistent ones are skipped silently with a warning.
+Only the listed subfolders will be copied — any nonexistent folders will be skipped with a warning, but will not cause the build to fail.
+
 
 ### Example
 
@@ -272,6 +290,5 @@ feature_x
 feature_y
 ```
 
-This format gives you precise control over which modules are included in the final SDK build.
 
-
+This format gives you fine-grained control over which modules are included in the SDK build, making it easy to tailor your environment to specific use cases or test scenarios.
