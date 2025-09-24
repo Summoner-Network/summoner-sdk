@@ -8,7 +8,7 @@
 #   -r, --repo      owner/repo (default: Summoner-Network/summoner-agents)
 #   -l, --list      list available agents on the branch, then exit
 
-set -euo pipefail
+# set -euo pipefail
 
 REPO="${REPO:-Summoner-Network/summoner-agents}"
 BRANCH="${BRANCH:-main}"
