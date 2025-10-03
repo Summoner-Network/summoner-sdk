@@ -102,7 +102,7 @@ function Activate-Venv {
   $env:Path = "$($vp.Bin);$env:Path"
 
   # Verification
-  & $vp.Py '-c' 'import sys, os; print("python executable:", sys.executable); print("sys.prefix:", os.path.abspath(sys.prefix))'
+  & $vp.Py @('-c', 'import sys, os; print("python executable:", sys.executable); print("sys.prefix:", os.path.abspath(sys.prefix))')
   Write-Host ("Activated venv at: {0}" -f $VenvDir)
 }
 
