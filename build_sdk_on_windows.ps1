@@ -127,7 +127,6 @@ function Activate-Venv {
   $env:Path = "$($vp.Bin);$env:Path"
 
   # Verification
-  # verification via temp script to avoid quoting/parsing issues
   $verifyPy = @'
 import sys, os
 print("python executable:", sys.executable)
