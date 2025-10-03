@@ -102,7 +102,7 @@ function Activate-Venv {
   $env:Path = "$($vp.Bin);$env:Path"
 
   # Verification
-  & $vp.Py '-c' 'import sys, os; print("python executable:", sys.executable); print("sys.prefix:", os.path.abspath(sys.prefix))'
+  & $vp.Py -c 'import sys, os; print("python executable:", sys.executable); print("sys.prefix:", os.path.abspath(sys.prefix))'
   Write-Host ("Activated venv at: {0}" -f $VenvDir)
 }
 
@@ -225,11 +225,12 @@ function Install-PythonSDK {
     & $vp.Py -m pip install --no-build-isolation .
 
     Write-Host "  Verifying install"
-    & $vp.Py -c "import sys; print('OK python:', sys.executable); import summoner as s; print('OK import summoner; version:', getattr(s,'__version__','n/a'))"
+    & $vp.Py '-c' 'import sys; print("OK python:", sys.executable); import summoner as s; print("OK import summoner; version:", getattr(s,"__version__","n/a"))'
   } finally {
     Pop-Location
   }
 }
+
 
 function Bootstrap {
   Write-Host "Bootstrapping environment..."
