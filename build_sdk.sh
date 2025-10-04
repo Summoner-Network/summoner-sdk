@@ -63,10 +63,10 @@ rewrite_imports() {
   | while IFS= read -r -d '' file; do
       echo "    📄 Processing: $file"
 
-      # Before: red
+      # Before: red (only show tooling.* lines)
       echo "      ↪ Before:"
-      if grep -E '^[[:space:]]*#?[[:space:]]*from[[:space:]]+(tooling|summoner)\.' "$file" >/dev/null; then
-        grep -E '^[[:space:]]*#?[[:space:]]*from[[:space:]]+(tooling|summoner)\.' "$file" \
+      if grep -E '^[[:space:]]*#?[[:space:]]*from[[:space:]]+tooling\.' "$file" >/dev/null; then
+        grep -E '^[[:space:]]*#?[[:space:]]*from[[:space:]]+tooling\.' "$file" \
           | sed -e "s/^/        ${RED}/" -e "s/$/${RESET}/"
       else
         echo "        (no matches)"
@@ -76,10 +76,9 @@ rewrite_imports() {
       tmp_before=$(mktemp) || { echo "      ❌ mktemp failed"; continue; }
       cp "$file" "$tmp_before"
 
-      # in-place replacements
+      # in-place replacements: tooling.* → summoner.*  (do NOT touch summoner.*)
       sed -E "${SED_INPLACE[@]}" \
-        -e 's/^([[:space:]]*#?[[:space:]]*)from[[:space:]]+tooling\.([[:alnum:]_]+)/\1from \2/' \
-        -e 's/^([[:space:]]*#?[[:space:]]*)from[[:space:]]+summoner\.([[:alnum:]_]+)/\1from \2/' \
+        -e 's/^([[:space:]]*#?[[:space:]]*)from[[:space:]]+tooling\.([[:alnum:]_]+)/\1from summoner.\2/' \
         "$file"
 
       # After: green
@@ -96,8 +95,6 @@ rewrite_imports() {
       rm -f "$tmp_before"
     done
 }
-
-
 
 
 clone_native() {
