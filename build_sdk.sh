@@ -21,7 +21,7 @@ die() {
 }
 
 usage() {
-  die "Usage: $0 {setup|delete|reset|deps|test_server|clean} [build|test_build] [--uv] [--server <version>]"
+  die "Usage: $0 {setup|delete|reset|deps|test_server|clean} [build|test_build] [--uv] [--server <version>] [--venv <path>]"
 }
 
 # ─────────────────────────────────────────────────────
@@ -38,11 +38,12 @@ VENVDIR="$ROOT/venv"
 PYTHON="python3"
 
 # ─────────────────────────────────────────────────────
-# Minimal options: --uv and --server <version>
+# Minimal options: --uv, --server <version>, --venv <path>
 #   --server expects something like: v1_0_0 (becomes rust_server_v1_0_0)
 # ─────────────────────────────────────────────────────
 USE_UV=false
 SERVER_VERSION="v1_0_0"
+VENV_OVERRIDE=""
 
 prev=""
 for arg in "$@"; do
@@ -54,11 +55,38 @@ for arg in "$@"; do
     continue
   elif [[ "$arg" == "--server" ]]; then
     prev="--server"
+  elif [[ "$prev" == "--venv" ]]; then
+    VENV_OVERRIDE="$arg"
+    prev=""
+    continue
+  elif [[ "$arg" == "--venv" ]]; then
+    prev="--venv"
   fi
 done
 
 if [[ "$prev" == "--server" ]]; then
   die "--server requires a value, e.g. --server v1_0_0"
+fi
+
+if [[ "$prev" == "--venv" ]]; then
+  die "--venv requires a value, e.g. --venv .venv"
+fi
+
+# If provided, override VENVDIR early so every caller uses the same venv path.
+# IMPORTANT: do NOT 'cd' into the venv path here (it may not exist yet).
+if [[ -n "$VENV_OVERRIDE" ]]; then
+  if [[ "$VENV_OVERRIDE" == /* ]]; then
+    VENVDIR="$VENV_OVERRIDE"
+  else
+    VENVDIR="$ROOT/$VENV_OVERRIDE"
+  fi
+  # normalize trailing slash
+  VENVDIR="${VENVDIR%/}"
+fi
+
+# Guard against empty path (prevents uv venv "" and /bin/activate bugs)
+if [[ -z "$VENVDIR" ]]; then
+  die "Resolved VENVDIR is empty. Check your --venv value."
 fi
 
 RUST_SERVER_PREFIX="rust_server_${SERVER_VERSION}"
@@ -131,7 +159,6 @@ rewrite_imports() {
     done
 }
 
-
 clone_native() {
   local url=$1 name
   name=$(basename "$url" .git)
@@ -171,7 +198,7 @@ merge_tooling() {
       if [ -d "$srcdir/$pkg" ]; then
         dest="$SRC/summoner/$pkg"
         echo "    🚚 Adding package: $pkg"
-        cp -R "$srcdir/$pkg" "$dest"
+        cp -R "$pkg_dir" "$dest"
         rewrite_imports "$pkg" "$dest"
       else
         echo "    ⚠️  $name/tooling/$pkg not found, skipping"
@@ -308,9 +335,9 @@ EOF
 
   echo "  🔁 Running reinstall_python_sdk.sh ($RUST_SERVER_PREFIX)"
   if [[ "$USE_UV" == "true" ]]; then
-    bash "$SRC/reinstall_python_sdk.sh" "$RUST_SERVER_PREFIX" --uv
+    bash "$SRC/reinstall_python_sdk.sh" "$RUST_SERVER_PREFIX" --uv --venv "$VENVDIR"
   else
-    bash "$SRC/reinstall_python_sdk.sh" "$RUST_SERVER_PREFIX"
+    bash "$SRC/reinstall_python_sdk.sh" "$RUST_SERVER_PREFIX" --venv "$VENVDIR"
   fi
 
   echo "✅ Setup complete! You are now in the venv."
@@ -335,9 +362,9 @@ deps() {
   [ -d "$VENVDIR" ] || die "Run setup first"
   source "$VENVDIR/bin/activate"
   if [[ "$USE_UV" == "true" ]]; then
-    bash "$SRC/reinstall_python_sdk.sh" "$RUST_SERVER_PREFIX" --uv
+    bash "$SRC/reinstall_python_sdk.sh" "$RUST_SERVER_PREFIX" --uv --venv "$VENVDIR"
   else
-    bash "$SRC/reinstall_python_sdk.sh" "$RUST_SERVER_PREFIX"
+    bash "$SRC/reinstall_python_sdk.sh" "$RUST_SERVER_PREFIX" --venv "$VENVDIR"
   fi
   echo "✅ Dependencies reinstalled!"
 }
@@ -371,7 +398,7 @@ clean() {
 case "${1:-}" in
   setup)
     variant="${2:-build}"
-    if [[ "$variant" == "--uv" || "$variant" == "--server" ]]; then
+    if [[ "$variant" == "--uv" || "$variant" == "--server" || "$variant" == "--venv" ]]; then
       variant="build"
     fi
 
