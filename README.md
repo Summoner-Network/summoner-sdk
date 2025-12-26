@@ -114,7 +114,8 @@ You can invoke `build_sdk.sh` in two ways:
 
 ### Usage Examples
 
-> ⚠️ **Tip:** For development workflows, using `source` is recommended so your shell remains in the activated environment.
+> [!TIP]
+> For development workflows, using `source` is recommended so your shell remains in the activated environment.
 
 ```bash
 # Use source to stay in the venv automatically
