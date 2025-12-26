@@ -1,13 +1,17 @@
 # Summoner SDK Build & Dev Script
 
-This repository provides a **GitHub template** that includes `build_sdk.sh`, a one-stop script for managing your Summoner SDK development — from cloning the core repo and merging native modules to running smoke tests. Below is an overview of each command, its expected behavior, and example usage.
+This repository provides a **GitHub template** that includes `build_sdk.sh`, a one-stop script for managing your Summoner SDK development from cloning the core repo and merging native modules to running smoke tests. Below is an overview of each command, its expected behavior, and example usage.
 
 ## Prerequisites
 
 - Bash shell (Linux/macOS)  
 - `git`, `python3` in your `PATH`  
 - A `build.txt` file listing your native-module repo URLs (one per line)  
-- Optionally a `test_build.txt` (for quick self-tests against the starter template)
+- Optionally a `test_build.txt` (for quick self-tests against the starter template)  
+- *(Optional)* `uv` if you want to use `--uv` (Linux/macOS only)
+
+> [!NOTE]
+> By convention, this template does not support Rust installation on Windows. For Windows users, use the PowerShell script `build_sdk_on_windows.ps1` (see below). The `--uv` option is only supported for `build_sdk.sh` on Linux/macOS workflows.
 
 ## Getting Started
 
@@ -28,7 +32,7 @@ Clone your new repository and navigate into it:
 ```bash
 git clone https://github.com/<your_account>/<your_repo>.git
 cd <your_repo>
-```
+````
 
 Next, define your SDK composition by editing the [`build.txt`](#buildtxt--test_buildtxt-format) file, which lists the native modules to include in your build. Then run the [`build_sdk.sh`](#how-to-run-build_sdksh) script:
 
@@ -36,7 +40,30 @@ Next, define your SDK composition by editing the [`build.txt`](#buildtxt--test_b
 source build_sdk.sh setup
 ```
 
-You’re now ready to begin development.
+You're now ready to begin development.
+
+## Windows Users (PowerShell)
+
+If you are on Windows, use the PowerShell script:
+
+```powershell
+# You may need to allow scripts to run for this session:
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+
+# Then run:
+.\build_sdk_on_windows.ps1 setup
+```
+
+The script exposes similar commands to the Bash script (see subsequent sections for behavior):
+
+```powershell
+.\build_sdk_on_windows.ps1 setup test_build
+.\build_sdk_on_windows.ps1 deps
+.\build_sdk_on_windows.ps1 test_server
+
+# Optional: activate the repo venv in THIS PowerShell session
+. .\build_sdk_on_windows.ps1 use_venv
+```
 
 ## How to Run `build_sdk.sh`
 
@@ -46,14 +73,14 @@ You can invoke `build_sdk.sh` in two ways:
 
    ```bash
    # Without +x
-   bash build_sdk.sh <command> [variant]
+   bash build_sdk.sh <command> [variant] [--uv] [--server <version>]
 
    # With +x
    chmod +x build_sdk.sh
-   ./build_sdk.sh <command> [variant]
+   ./build_sdk.sh <command> [variant] [--uv] [--server <version>]
    ```
 
-   After executing `build_sdk.sh setup`, the script will have created and populated the `venv/`, but you’ll need to activate it manually:
+   After executing `build_sdk.sh setup`, the script will have created and populated the `venv/`, but you'll need to activate it manually:
 
    ```bash
    source venv/bin/activate
@@ -62,11 +89,14 @@ You can invoke `build_sdk.sh` in two ways:
 2. **Source** (runs in your current shell)
 
    ```bash
-   source build_sdk.sh <command> [variant]
+   source build_sdk.sh <command> [variant] [--uv] [--server <version>]
    ```
 
    When sourced, the script activates the `venv/` automatically. Your shell remains in the environment, ready to use the `summoner` SDK immediately.
 
+   `--uv` is optional. When provided, `build_sdk.sh` will create the venv using `uv venv` and install Python dependencies using `uv pip ...` instead of `pip ...`. If you do not pass `--uv`, the script uses `python -m venv` and `pip` (default behavior).
+
+   `--server <version>` is optional. It selects which Rust server prefix to install via `reinstall_python_sdk.sh`. For example, `--server v1_1_0` will install `rust_server_v1_1_0`. If omitted, the default is `v1_0_0` (so it installs `rust_server_v1_0_0`).
 
 ### Available Commands
 
@@ -76,9 +106,11 @@ You can invoke `build_sdk.sh` in two ways:
 | `delete`      | —                                             | Remove `summoner-sdk/`, `venv/`, `native_build/`, and any generated `test_server*` files.                                                       |
 | `reset`       | —                                             | Equivalent to running `delete` followed by `setup` (fresh clone + install).                                                                     |
 | `deps`        | —                                             | Reinstall Rust & Python dependencies in the existing `venv/` by rerunning `reinstall_python_sdk.sh`.                                            |
-| `test_server` | —                                             | Launch a small demo server against the SDK in `venv/`, calling your package’s `hello_summoner()`.                                  |
+| `test_server` | —                                             | Launch a small demo server against the SDK in `venv/`, calling your package's `hello_summoner()`.                                               |
 | `clean`       | —                                             | Remove only build artifacts in `native_build/` and any `test_*.py`, `test_*.json`, or `test_*.log` files (preserves `venv/`).                   |
 
+> [!NOTE]
+> All commands accept an optional `--uv` flag (Linux/macOS only). Default is `pip`. You can also optionally select the Rust server prefix with `--server <version>` (default `v1_0_0`).
 
 ### Usage Examples
 
@@ -88,9 +120,21 @@ You can invoke `build_sdk.sh` in two ways:
 # Use source to stay in the venv automatically
 source build_sdk.sh setup
 
+# Same, but use uv for venv + installs (Linux/macOS only)
+source build_sdk.sh setup --uv
+
+# Select a Rust server prefix (defaults to v1_0_0 if omitted)
+source build_sdk.sh setup --server v1_1_0
+
+# Combine uv + server prefix
+source build_sdk.sh setup --uv --server v1_1_0
+
 # Explicit build variants
 source build_sdk.sh setup build
 source build_sdk.sh setup test_build
+
+# With uv + variant
+source build_sdk.sh setup test_build --uv
 
 # If using execution instead
 bash build_sdk.sh setup
@@ -108,22 +152,42 @@ source venv/bin/activate
 2. Reads either **`build.txt`** (for your real native modules) or **`test_build.txt`** (for a quick starter-template smoke test), and clones each listed repo into `native_build/`.
 3. Copies every `tooling/<pkg>/` folder into `summoner-sdk/summoner/<pkg>/`, rewriting imports (`tooling.pkg` → `pkg`).
 4. Creates a Python virtualenv in `venv/` (if missing).
+
+   * Default: `python3 -m venv venv/`
+   * With `--uv`: `uv venv venv/` *(Linux/macOS only)*
 5. Activates `venv/`, installs build tools (`setuptools`, `wheel`, `maturin`).
+
+   * Default: `pip install ...`
+   * With `--uv`: `uv pip install ...`
 6. Writes a `.env` file under `summoner-sdk/`.
 7. Runs `summoner-sdk/reinstall_python_sdk.sh rust_server_v1_0_0` to pull in any Rust/Python extras (this also installs the merged SDK).
 
+   * With `--uv`, the script forwards `--uv` to `reinstall_python_sdk.sh` so Python operations use `uv pip` as well.
+   * With `--server <version>`, it instead runs `summoner-sdk/reinstall_python_sdk.sh rust_server_<version>`. For example `--server v1_1_0` runs `... rust_server_v1_1_0`. If omitted, it defaults to `v1_0_0`.
+
 **Usage**
 
-
 ```bash
-# default (uses build.txt)
+# default (uses build.txt, pip, server=v1_0_0)
 source build_sdk.sh setup
+
+# same, but use uv (Linux/macOS only)
+source build_sdk.sh setup --uv
+
+# select a Rust server prefix
+source build_sdk.sh setup --server v1_1_0
+
+# combine uv + server prefix
+source build_sdk.sh setup --uv --server v1_1_0
 
 # explicitly use build.txt
 source build_sdk.sh setup build
 
 # use test_build.txt for a quick demo against the starter template
 source build_sdk.sh setup test_build
+
+# uv + test_build
+source build_sdk.sh setup test_build --uv
 ```
 
 If you use `bash` instead of `source`, make sure you activate `venv/` by using `source venv/bin/activate` in order to use the SDK.
@@ -165,10 +229,12 @@ bash build_sdk.sh reset
 In the existing `venv/`, reruns the Rust/Python dependency installer:
 
 ```bash
-bash summoner-sdk/reinstall_python_sdk.sh rust_server_v1_0_0
+bash summoner-sdk/reinstall_python_sdk.sh rust_server_v1_0_0 [--uv] [--server <version>]
 ```
 
-Useful if you’ve updated core or your Rust SDK.
+Useful if you've updated core or your Rust SDK.
+
+If you originally set up with `--uv`, you should also run `deps` with `--uv` for consistency.
 
 **Usage**
 
@@ -184,7 +250,7 @@ bash build_sdk.sh deps
 Runs a small demo server **against the SDK** installed in `venv/`. It:
 
 1. Activates `venv/`
-2. Copies the core’s `desktop_data/default_config.json` → `test_server_config.json`
+2. Copies the core's `desktop_data/default_config.json` → `test_server_config.json`
 3. Generates `test_server.py`:
 
    ```python
@@ -211,7 +277,7 @@ bash build_sdk.sh test_server
 Removes only the build artifacts and test scripts, preserving `venv/`:
 
 * `native_build/`
-* Any `test_*.py`, `test_*.json`, or `test_*.log` files 
+* Any `test_*.py`, `test_*.json`, or `test_*.log` files
 
 **Usage**
 
@@ -246,7 +312,6 @@ The `build.txt` and `test_build.txt` files define which native-package repositor
 
 You can **optionally specify which subfolders within `tooling/` to include** from each repository.
 
-
 ### Basic Format (include all features)
 
 To include all available features from a repository — meaning every folder under its `tooling/` directory — just write the repo URL by itself:
@@ -263,10 +328,9 @@ For basic smoke testing, your `test_build.txt` can be minimal:
 https://github.com/Summoner-Network/starter-template.git
 ```
 
-
 ### Filtered Format (include specific folders)
 
-To include only specific subfolders from a repository’s `tooling/` directory, add a colon `:` after the URL, followed by the names of the folders you want (one per line):
+To include only specific subfolders from a repository's `tooling/` directory, add a colon `:` after the URL, followed by the names of the folders you want (one per line):
 
 ```txt
 # Only include feature1 and feature2 from this repo
@@ -276,7 +340,6 @@ feature2
 ```
 
 Only the listed subfolders will be copied — any nonexistent folders will be skipped with a warning, but will not cause the build to fail.
-
 
 ### Example
 
@@ -289,6 +352,5 @@ https://github.com/Summoner-Network/summoner-agentclass.git:
 feature_x
 feature_y
 ```
-
 
 This format gives you fine-grained control over which modules are included in the SDK build, making it easy to tailor your environment to specific use cases or test scenarios.
