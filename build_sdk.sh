@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# set -e  # only -e, no -u so sourcing doesn’t abort on unset vars
+set -e  # only -e, no -u so sourcing doesn’t abort on unset vars
 
 # ─────────────────────────────────────────────────────
 # Detect if script is being sourced or executed
@@ -198,7 +198,7 @@ merge_tooling() {
       if [ -d "$srcdir/$pkg" ]; then
         dest="$SRC/summoner/$pkg"
         echo "    🚚 Adding package: $pkg"
-        cp -R "$pkg_dir" "$dest"
+        cp -R "$srcdir/$pkg" "$dest"
         rewrite_imports "$pkg" "$dest"
       else
         echo "    ⚠️  $name/tooling/$pkg not found, skipping"
